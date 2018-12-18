@@ -1,0 +1,3 @@
+/home/zhenyu/yzy_vo/build/CMakeFiles/edit_cache.dir
+/home/zhenyu/yzy_vo/build/CMakeFiles/rebuild_cache.dir
+/home/zhenyu/yzy_vo/build/CMakeFiles/yzy_vo.dir
