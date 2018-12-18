@@ -25,7 +25,7 @@ using namespace std;
 // 输出：points1, points2, 两组对应的2D点
 int     findCorrespondingPoints( const cv::Mat& img1, const cv::Mat& img2, vector<cv::Point2f>& points1, vector<cv::Point2f>& points2, cv::Mat& img1_with_features);
 //const int MAX_FEATURES = 500;
-const int MAX_FEATURES = 50;
+const int MAX_FEATURES = 100;
 // 相机内参
 double cx = 325.5;
 double cy = 253.5;
@@ -36,9 +36,26 @@ clock_t deltaTime = 0;
 unsigned int frames = 0;
 double  frameRate = 30;
 
+Mat traj_image = Mat::zeros( 500, 500, CV_8UC1);
+
 double clockToMilliseconds(clock_t ticks){
     // units/(units/time) => time (seconds) * 1000 = milliseconds
     return (ticks/(double)CLOCKS_PER_SEC)*1000.0;
+}
+
+
+void visulizePose2d(Mat& traj_image,Mat t_g)
+{
+    double drawX = -t_g.at<double>(0,0);
+    double drawY = t_g.at<double>(0,2);
+    drawX*=2;
+    drawY*=2;
+    drawX = (int)drawX+250;
+    drawY = (int)drawY+250;
+    cout<<"drawX = "<<drawX<<", drawY = "<<drawY<<endl;
+    Point drawP = Point(drawX,drawY);
+    line(traj_image,drawP,drawP,Scalar(255,255,255),3,8);
+    imshow("traj_image", traj_image);
 }
 
 int main( int argc, char** argv )
@@ -74,7 +91,7 @@ int main( int argc, char** argv )
             //imshow("img2", img2);
             if(waitKey(30) >= 0) break;
             img2.copyTo(img1);
-            cout<<"匹配点不够！"<<endl;
+            cout<<"Insufficient matching!"<<endl;
             continue;
         }
         //cout<<"找到了"<<pts1.size()<<"组对应特征点。"<<endl;
@@ -89,6 +106,22 @@ int main( int argc, char** argv )
         //imshow("img1", img1);
         //imshow("img2", img2);
         //imshow("img1_with_features", img1_with_features);
+
+
+
+
+        //draw 2d trajectory onto mat
+        visulizePose2d(traj_image,t_g);
+        //double drawX = t_g.at<double>(0,0);
+        //double drawY = t_g.at<double>(0,2);
+        //drawX*=3;
+        //drawY*=3;
+        //drawX = (int)drawX+250;
+        //drawY = (int)drawY+250;
+        //cout<<"drawX = "<<drawX<<", drawY = "<<drawY<<endl;
+        //Point drawP = Point(drawX,drawY);
+        //line(traj_image,drawP,drawP,Scalar(255,255,255),1,8);
+        //imshow("traj_image", traj_image);
 
         t_g = t_g+t;
         cout<<"[FPS: "<<frameRate<<"]: T = "<< std::fixed <<std::setprecision(2)<<t.at<double>(0,0)<<", "<<t.at<double>(0,1)<<", "<<t.at<double>(0,2)<<", T_G = "<<t_g.at<double>(0,0)<<", "<<t_g.at<double>(0,1)<<", "<<t_g.at<double>(0,2)<<endl; 
