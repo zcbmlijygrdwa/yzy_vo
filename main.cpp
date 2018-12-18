@@ -25,12 +25,21 @@ using namespace std;
 // 输出：points1, points2, 两组对应的2D点
 int     findCorrespondingPoints( const cv::Mat& img1, const cv::Mat& img2, vector<cv::Point2f>& points1, vector<cv::Point2f>& points2, cv::Mat& img1_with_features);
 //const int MAX_FEATURES = 500;
-const int MAX_FEATURES = 100;
+const int MAX_FEATURES = 50;
 // 相机内参
 double cx = 325.5;
 double cy = 253.5;
 double fx = 518.0;
 double fy = 519.0;
+
+clock_t deltaTime = 0;
+unsigned int frames = 0;
+double  frameRate = 30;
+
+double clockToMilliseconds(clock_t ticks){
+    // units/(units/time) => time (seconds) * 1000 = milliseconds
+    return (ticks/(double)CLOCKS_PER_SEC)*1000.0;
+}
 
 int main( int argc, char** argv )
 {
@@ -53,6 +62,8 @@ int main( int argc, char** argv )
 
     while(cap.isOpened())
     {
+        clock_t beginFrame = clock();
+
         cap>>img2;
 
         // 找到对应点
@@ -77,14 +88,24 @@ int main( int argc, char** argv )
         //end of using epipolar constrain
         //imshow("img1", img1);
         //imshow("img2", img2);
-        imshow("img1_with_features", img1_with_features);
+        //imshow("img1_with_features", img1_with_features);
 
         t_g = t_g+t;
-        cout<<"Pose[from epipolar constrain]: T = "<< std::fixed <<std::setprecision(2)<<t.at<double>(0,0)<<", "<<t.at<double>(0,1)<<", "<<t.at<double>(0,2)<<", T_G = "<<t_g.at<double>(0,0)<<", "<<t_g.at<double>(0,1)<<", "<<t_g.at<double>(0,2)<<endl; 
+        cout<<"[FPS: "<<frameRate<<"]: T = "<< std::fixed <<std::setprecision(2)<<t.at<double>(0,0)<<", "<<t.at<double>(0,1)<<", "<<t.at<double>(0,2)<<", T_G = "<<t_g.at<double>(0,0)<<", "<<t_g.at<double>(0,1)<<", "<<t_g.at<double>(0,2)<<endl; 
 
         if(waitKey(30) >= 0) break;
 
         img2.copyTo(img1);
+        clock_t endFrame = clock();
+        deltaTime += endFrame - beginFrame;
+        frames ++;
+        //if you really want FPS
+        if( clockToMilliseconds(deltaTime)>1000.0)
+        { //every second
+            frameRate = (double)frames*0.5 +  frameRate*0.5; //more stable
+            frames = 0;
+            deltaTime -= CLOCKS_PER_SEC;
+        }
     }
     return 0;
 }
@@ -105,7 +126,7 @@ int     findCorrespondingPoints( const cv::Mat& img1, const cv::Mat& img2, vecto
     }
 
 
-    drawKeypoints(img1,kp1, img1_with_features, Scalar::all(-1),DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+    //drawKeypoints(img1,kp1, img1_with_features, Scalar::all(-1),DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
 
     cv::Ptr<cv::DescriptorMatcher>  matcher = cv::DescriptorMatcher::create( "BruteForce-Hamming");
 
