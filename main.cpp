@@ -73,16 +73,31 @@ int main( int argc, char** argv )
 {
 
     VideoCapture cap;
-    if(argc>1)
+
+    if(argc!=3)
+{
+cout<<"Useage:"<<endl<<"./yzy_vo cam [cameraIdex]"<<endl<<"./yzy_vo video [pathTovideo]"<<endl;
+return -1;
+}
+
+    if(strcmp(argv[1],"video")==0)
     {
         cout<<"Run as video input mode"<<endl;
-        cap = VideoCapture(argv[1]);
+        cap = VideoCapture(argv[2]);
     }
-    else
+    else if(strcmp(argv[1],"cam")==0)
     {
-        cout<<"Run as web_cam mode"<<endl;
-        cap = VideoCapture(1);
+        int cameraIdx = atoi(argv[2]);
+
+        cout<<"Run as web_cam mode, preparing camera["<<cameraIdx<<"]"<<endl;
+        cap = VideoCapture(cameraIdx);
     }
+else
+{
+cout<<"Useage:"<<endl<<"./yzy_vo cam [cameraIdex]"<<endl<<"./yzy_vo video [pathTovideo]"<<endl;
+
+return -1;
+}
 
     //VideoCapture cap(1);
     if(!cap.isOpened())  // check if we succeeded
