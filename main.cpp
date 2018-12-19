@@ -9,16 +9,25 @@
 
 // for std
 #include <iostream>
+
+//for Eigen
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 // for opencv 
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/opencv.hpp>
+#include <opencv2/core/eigen.hpp>
 #include <boost/concept_check.hpp>
+
+
+
 
 using namespace cv;
 using namespace std;
+using namespace Eigen;
 
 // 寻找两个图像中的对应点，像素坐标系
 // 输入：img1, img2 两张图像
@@ -44,10 +53,12 @@ double clockToMilliseconds(clock_t ticks){
 }
 
 
-void visulizePose2d(Mat& traj_image,Mat t_g)
+void visulizePose2d(Mat& traj_image,Isometry3d& pose_in)
 {
-    double drawX = -t_g.at<double>(0,0);
-    double drawY = t_g.at<double>(0,2);
+    Vector3d translation = pose_in.translation();
+
+    double drawX = translation(0);
+    double drawY = translation(2);
     drawX*=2;
     drawY*=2;
     drawX = (int)drawX+250;
@@ -61,7 +72,19 @@ void visulizePose2d(Mat& traj_image,Mat t_g)
 int main( int argc, char** argv )
 {
 
-    VideoCapture cap(1);
+    VideoCapture cap;
+    if(argc>1)
+    {
+        cout<<"Run as video input mode"<<endl;
+        cap = VideoCapture(argv[1]);
+    }
+    else
+    {
+        cout<<"Run as web_cam mode"<<endl;
+        cap = VideoCapture(1);
+    }
+
+    //VideoCapture cap(1);
     if(!cap.isOpened())  // check if we succeeded
     {
         cout<<"camera not open"<<endl;
@@ -72,7 +95,10 @@ int main( int argc, char** argv )
     cv::Mat img1; 
     cv::Mat img2; 
 
-    cv::Mat t_g = Mat(3,1, CV_64F, cvScalar(0.));;
+
+    //create Isometry object to keep tracking of pose
+    Isometry3d pose_g = Isometry3d::Identity();
+
 
     Mat img1_with_features;
     cap>>img1;
@@ -105,26 +131,30 @@ int main( int argc, char** argv )
         //end of using epipolar constrain
         //imshow("img1", img1);
         //imshow("img2", img2);
-        //imshow("img1_with_features", img1_with_features);
+        imshow("img1_with_features", img1_with_features);
 
 
 
+
+
+        //accumulating transformation
+        Matrix3d rot_mat;
+        Vector3d t_mat;
+        cv::cv2eigen(R,rot_mat);
+        //cout<<"rot_mat = "<<rot_mat<<endl;
+        cv::cv2eigen(t,t_mat);
+        //cout<<"t_mat.size() = "<<t_mat.size()<<endl;
+        //cout<<"t_mat = "<<t_mat<<endl;
+        pose_g.rotate(rot_mat);
+        pose_g.pretranslate(t_mat);
+        cout<<"pose_g = "<<endl<<pose_g.matrix()<<endl;
+        //cout<<"pose_g.translation() = "<<pose_g.translation()<<endl;
 
         //draw 2d trajectory onto mat
-        visulizePose2d(traj_image,t_g);
-        //double drawX = t_g.at<double>(0,0);
-        //double drawY = t_g.at<double>(0,2);
-        //drawX*=3;
-        //drawY*=3;
-        //drawX = (int)drawX+250;
-        //drawY = (int)drawY+250;
-        //cout<<"drawX = "<<drawX<<", drawY = "<<drawY<<endl;
-        //Point drawP = Point(drawX,drawY);
-        //line(traj_image,drawP,drawP,Scalar(255,255,255),1,8);
-        //imshow("traj_image", traj_image);
+        visulizePose2d(traj_image,pose_g);
 
-        t_g = t_g+t;
-        cout<<"[FPS: "<<frameRate<<"]: T = "<< std::fixed <<std::setprecision(2)<<t.at<double>(0,0)<<", "<<t.at<double>(0,1)<<", "<<t.at<double>(0,2)<<", T_G = "<<t_g.at<double>(0,0)<<", "<<t_g.at<double>(0,1)<<", "<<t_g.at<double>(0,2)<<endl; 
+
+        //cout<<"[FPS: "<<frameRate<<"]: T = "<< std::fixed <<std::setprecision(2)<<t.at<double>(0,0)<<", "<<t.at<double>(0,1)<<", "<<t.at<double>(0,2)<<", T_G = "<<t_g.at<double>(0,0)<<", "<<t_g.at<double>(0,1)<<", "<<t_g.at<double>(0,2)<<endl; 
 
         if(waitKey(30) >= 0) break;
 
@@ -159,7 +189,7 @@ int     findCorrespondingPoints( const cv::Mat& img1, const cv::Mat& img2, vecto
     }
 
 
-    //drawKeypoints(img1,kp1, img1_with_features, Scalar::all(-1),DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+    drawKeypoints(img1,kp1, img1_with_features, Scalar::all(-1),DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
 
     cv::Ptr<cv::DescriptorMatcher>  matcher = cv::DescriptorMatcher::create( "BruteForce-Hamming");
 
