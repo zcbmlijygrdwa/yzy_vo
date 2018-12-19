@@ -17,3 +17,7 @@ Useage:
 
     ./yzy_vo cam [cameraIdex]
     ./yzy_vo video [pathTovideo]
+
+
+Speed:
+Tested on 2010 MacBook Air 13-inch [CPU: Intel(R) Core(TM)2 Duo CPU     L9400  @ 1.86GHz], obtained frame rate of 19 FPS.

@@ -45,7 +45,7 @@ clock_t deltaTime = 0;
 unsigned int frames = 0;
 double  frameRate = 30;
 
-Mat traj_image = Mat::zeros( 500, 500, CV_8UC1);
+Mat traj_image = Mat::zeros( 800, 800, CV_8UC1);
 
 double clockToMilliseconds(clock_t ticks){
     // units/(units/time) => time (seconds) * 1000 = milliseconds
@@ -59,11 +59,11 @@ void visulizePose2d(Mat& traj_image,Isometry3d& pose_in)
 
     double drawX = translation(0);
     double drawY = translation(2);
-    drawX*=2;
-    drawY*=2;
-    drawX = (int)drawX+250;
-    drawY = (int)drawY+250;
-    cout<<"drawX = "<<drawX<<", drawY = "<<drawY<<endl;
+    drawX*=0.5;
+    drawY*=0.5;
+    drawX = (int)drawX+traj_image.cols/2;
+    drawY = (int)drawY+traj_image.rows/2;
+    //cout<<"drawX = "<<drawX<<", drawY = "<<drawY<<endl;
     Point drawP = Point(drawX,drawY);
     line(traj_image,drawP,drawP,Scalar(255,255,255),3,8);
     imshow("traj_image", traj_image);
@@ -75,10 +75,10 @@ int main( int argc, char** argv )
     VideoCapture cap;
 
     if(argc!=3)
-{
-cout<<"Useage:"<<endl<<"./yzy_vo cam [cameraIdex]"<<endl<<"./yzy_vo video [pathTovideo]"<<endl;
-return -1;
-}
+    {
+        cout<<"Useage:"<<endl<<"./yzy_vo cam [cameraIdex]"<<endl<<"./yzy_vo video [pathTovideo]"<<endl;
+        return -1;
+    }
 
     if(strcmp(argv[1],"video")==0)
     {
@@ -92,12 +92,12 @@ return -1;
         cout<<"Run as web_cam mode, preparing camera["<<cameraIdx<<"]"<<endl;
         cap = VideoCapture(cameraIdx);
     }
-else
-{
-cout<<"Useage:"<<endl<<"./yzy_vo cam [cameraIdex]"<<endl<<"./yzy_vo video [pathTovideo]"<<endl;
+    else
+    {
+        cout<<"Useage:"<<endl<<"./yzy_vo cam [cameraIdex]"<<endl<<"./yzy_vo video [pathTovideo]"<<endl;
 
-return -1;
-}
+        return -1;
+    }
 
     //VideoCapture cap(1);
     if(!cap.isOpened())  // check if we succeeded
@@ -114,15 +114,18 @@ return -1;
     //create Isometry object to keep tracking of pose
     Isometry3d pose_g = Isometry3d::Identity();
 
+    float resizeFactor = 0.3f;
 
     Mat img1_with_features;
     cap>>img1;
 
+    resize(img1, img1, cv::Size(), resizeFactor, resizeFactor);
     while(cap.isOpened())
     {
         clock_t beginFrame = clock();
 
         cap>>img2;
+        resize(img2, img2, cv::Size(), resizeFactor, resizeFactor);
 
         // 找到对应点
         vector<cv::Point2f> pts1, pts2;
@@ -169,9 +172,10 @@ return -1;
         visulizePose2d(traj_image,pose_g);
 
 
-        //cout<<"[FPS: "<<frameRate<<"]: T = "<< std::fixed <<std::setprecision(2)<<t.at<double>(0,0)<<", "<<t.at<double>(0,1)<<", "<<t.at<double>(0,2)<<", T_G = "<<t_g.at<double>(0,0)<<", "<<t_g.at<double>(0,1)<<", "<<t_g.at<double>(0,2)<<endl; 
+        cout<<"FPS = "<<frameRate<<endl; 
 
-        if(waitKey(30) >= 0) break;
+        //if(waitKey(30) >= 0) break;
+        waitKey(1);
 
         img2.copyTo(img1);
         clock_t endFrame = clock();
