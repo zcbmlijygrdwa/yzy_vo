@@ -13,6 +13,8 @@ Eigen/Core
 -
 Eigen/Geometry
 -
+opencv2/video/tracking.hpp
+/home/zhenyu/yzy_vo/opencv2/video/tracking.hpp
 opencv2/core/core.hpp
 -
 opencv2/highgui/highgui.hpp

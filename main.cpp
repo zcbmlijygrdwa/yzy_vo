@@ -15,6 +15,7 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 // for opencv 
+#include "opencv2/video/tracking.hpp"
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
@@ -37,6 +38,33 @@
 using namespace cv;
 using namespace std;
 using namespace Eigen;
+
+
+void featureTracking(Mat img_1, Mat img_2, vector<Point2f>& points1, vector<Point2f>& points2, vector<uchar>& status)   {
+
+    //this function automatically gets rid of points for which tracking fails
+
+    vector<float> err;
+    Size winSize=Size(21,21);                                                               
+    TermCriteria termcrit=TermCriteria(TermCriteria::COUNT+TermCriteria::EPS, 30, 0.01);
+    calcOpticalFlowPyrLK(img_1, img_2, points1, points2, status, err, winSize, 3, termcrit, 0, 0.001);
+
+    //getting rid of points for which the KLT tracking failed or those who have gone outside the frame
+    int indexCorrection = 0;
+    int status_size = status.size();
+    for( int i=0; i<status_size; i++)
+    {  Point2f pt = points2.at(i- indexCorrection);
+        if ((status.at(i) == 0)||(pt.x<0)||(pt.y<0))    {
+            if((pt.x<0)||(pt.y<0))    {
+                status.at(i) = 0;
+            }
+            points1.erase (points1.begin() + (i - indexCorrection));
+            points2.erase (points2.begin() + (i - indexCorrection));
+            indexCorrection++;
+        }
+    }
+}
+
 
 int     findCorrespondingPoints( const cv::Mat& img1, const cv::Mat& img2, vector<cv::Point2f>& points1, vector<cv::Point2f>& points2, cv::Mat& img1_with_features);
 //const int MAX_FEATURES = 500;
@@ -124,10 +152,30 @@ int main( int argc, char** argv )
 
     pose_global.rotate(AngleAxisd(3.141592653*0.5,Vector3d::UnitX()));
 
+    vector<uchar> status;
+
+    vector<Point2f> prevFeatures;
+    vector<Point2f> currFeatures;
+
+
+
     Mat img1_with_features;
     cap>>img1;
-
     //resize(img1, img1, cv::Size(), resizeFactor, resizeFactor);
+
+    cv::Ptr<cv::Feature2D> orb = cv::ORB::create(MAX_FEATURES);
+    vector<cv::KeyPoint> kp1;
+    cv::Mat desp1;
+    orb->detectAndCompute( img1, cv::Mat(), kp1, desp1 );
+    vector<Point2f> tempPoints1;
+    cout<<"kp1.size() = "<<kp1.size()<<endl;
+    for(auto tempKp:kp1)
+    { 
+        tempPoints1.push_back( tempKp.pt );
+    }
+    prevFeatures = tempPoints1;
+    
+
     while(cap.isOpened())
     {
         clock_t beginFrame = clock();
@@ -155,13 +203,28 @@ int main( int argc, char** argv )
             continue;
         }
         //cout<<"找到了"<<pts1.size()<<"组对应特征点。"<<endl;
+
+        vector<Point2f> currFeatures;
+        currFeatures = pts2; 
+
+        //feature tracking
+
+        cout<<"prevFeatures.size() = "<<prevFeatures.size()<<endl;
+        cout<<"currFeatures.size() = "<<currFeatures.size()<<endl;
+
+        featureTracking(img1, img2, prevFeatures, currFeatures, status);
+
+        cout<<"2prevFeatures.size() = "<<prevFeatures.size()<<endl;
+        cout<<"2currFeatures.size() = "<<currFeatures.size()<<endl;
+
         //use epipolar constrain
         cv::Mat mask;
         cv::Mat e_mat;
-        e_mat = cv::findEssentialMat(pts1,pts2,fx,cv::Point2d(cx,cy),cv::RANSAC, 0.999, 1.f,mask);
+        e_mat = cv::findEssentialMat(pts1,pts2,fx,cv::Point2f(cx,cy),cv::RANSAC, 0.999, 1.f,mask);
+        //e_mat = cv::findEssentialMat(prevFeatures,currFeatures,fx,cv::Point2f(cx,cy),cv::RANSAC, 0.999, 1.f,mask);
         //cout << "E:" << endl << e_mat/e_mat.at<double>(2,2) << endl;
         cv::Mat R, t;
-        cv::recoverPose(e_mat, pts1, pts2, R, t,fx,cv::Point2d(cx,cy),mask);
+        cv::recoverPose(e_mat, pts1, pts2, R, t,fx,cv::Point2f(cx,cy),mask);
         //end of using epipolar constrain
         //imshow("img1", img1);
         //imshow("img2", img2);
@@ -215,7 +278,11 @@ int main( int argc, char** argv )
         //if(waitKey(30) >= 0) break;
         waitKey(1);
 
+
+
         img2.copyTo(img1);
+        prevFeatures = currFeatures;
+
         clock_t endFrame = clock();
         deltaTime += endFrame - beginFrame;
         frames ++;
