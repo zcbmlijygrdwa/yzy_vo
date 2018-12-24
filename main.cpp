@@ -94,8 +94,8 @@ void visulizePose2d(Mat& traj_image,Isometry3d& pose_in)
 {
     Vector3d translation = pose_in.translation();
 
-    double drawX = translation(0);
-    double drawY = translation(2);
+    double drawX = -translation(0);
+    double drawY = translation(1);
     //drawX*=50;
     //drawY*=50;
     drawX = (int)drawX+traj_image.cols/2;
@@ -182,11 +182,15 @@ int main( int argc, char** argv )
 
 
         cap>>img2;
-        if(frameCount%10!=0)
+    
+        //get a frame every 10 frames
+        //doing this to make sure feature points move enough distance on image, if distance too small, the camera small motion estimation will not be accurate.
+        if(frameCount%5!=0)
         {
             frameCount++;
             continue;
         }
+        
         //resize(img2, img2, cv::Size(), resizeFactor, resizeFactor);
 
         //cx = img2.cols/2;
@@ -194,6 +198,8 @@ int main( int argc, char** argv )
         //cout<<"cx = "<<cx<<endl;
         // 找到对应点
         vector<cv::Point2f> pts1, pts2;
+        
+
         if ( findCorrespondingPoints( img1, img2, pts1, pts2, img1_with_features) == false )
         {
             //imshow("img1", img1);
@@ -203,6 +209,8 @@ int main( int argc, char** argv )
             continue;
         }
         //cout<<"找到了"<<pts1.size()<<"组对应特征点。"<<endl;
+        
+        //prevFeatures = pts1;
 
         vector<Point2f> currFeatures;
         currFeatures = pts2; 
@@ -212,7 +220,7 @@ int main( int argc, char** argv )
         cout<<"prevFeatures.size() = "<<prevFeatures.size()<<endl;
         cout<<"currFeatures.size() = "<<currFeatures.size()<<endl;
 
-        featureTracking(img1, img2, prevFeatures, currFeatures, status);
+        //featureTracking(img1, img2, prevFeatures, currFeatures, status);
 
         cout<<"2prevFeatures.size() = "<<prevFeatures.size()<<endl;
         cout<<"2currFeatures.size() = "<<currFeatures.size()<<endl;
@@ -242,9 +250,21 @@ int main( int argc, char** argv )
         cv::cv2eigen(t,t_mat);
         //cout<<"t_mat = "<<t_mat<<endl;
         Isometry3d pose_temp = Isometry3d::Identity();
+
+        if(frameCount!=-160)
+{
         pose_temp.rotate(rot_mat);
         pose_temp.pretranslate(t_mat);
-
+}
+else
+{
+        rot_mat = AngleAxisd(0.25f,Vector3d::UnitY());
+        t_mat <<0,0,0;
+        cout<<"test rot_mat = "<<rot_mat<<endl;
+        cout<<"test t_mat = "<<t_mat<<endl;
+        pose_temp.rotate(rot_mat);
+        pose_temp.pretranslate(t_mat);
+}
 
         //*******************************
         //*********   G2O based  ********
@@ -253,8 +273,8 @@ int main( int argc, char** argv )
         //*******************************
 
 
-        //pose_global = pose_global*pose_temp;
-        pose_global = pose_temp*pose_global;
+        pose_global = pose_global*pose_temp;
+        //pose_global = pose_temp*pose_global;
 
         //pose_global.rotate(rot_mat);
         //pose_global.pretranslate(t_mat);
