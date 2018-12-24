@@ -27,6 +27,22 @@ opencv2/core/eigen.hpp
 -
 boost/concept_check.hpp
 -
+g2o/core/sparse_optimizer.h
+-
+g2o/core/block_solver.h
+-
+g2o/core/robust_kernel.h
+-
+g2o/core/robust_kernel_impl.h
+-
+g2o/core/optimization_algorithm_levenberg.h
+-
+g2o/solvers/cholmod/linear_solver_cholmod.h
+-
+g2o/types/slam3d/se3quat.h
+-
+g2o/types/sba/types_six_dof_expmap.h
+-
 
 /opt/ros/kinetic/include/opencv-3.3.1-dev/opencv/cxcore.h
 opencv2/core/core_c.h

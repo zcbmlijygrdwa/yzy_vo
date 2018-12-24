@@ -7,6 +7,7 @@
  * 在这个程序中，我们读取两张图像，进行特征匹配。然后根据匹配得到的特征，计算相机运动以及特征点的位置。这是一个典型的Bundle Adjustment，我们用g2o进行优化。
  */
 
+
 // for std
 #include <iostream>
 
@@ -21,7 +22,15 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/eigen.hpp>
 #include <boost/concept_check.hpp>
-
+// for g2o
+#include <g2o/core/sparse_optimizer.h>
+#include <g2o/core/block_solver.h>
+#include <g2o/core/robust_kernel.h>
+#include <g2o/core/robust_kernel_impl.h>
+#include <g2o/core/optimization_algorithm_levenberg.h>
+#include <g2o/solvers/cholmod/linear_solver_cholmod.h>
+#include <g2o/types/slam3d/se3quat.h>
+#include <g2o/types/sba/types_six_dof_expmap.h>
 
 
 
@@ -29,20 +38,18 @@ using namespace cv;
 using namespace std;
 using namespace Eigen;
 
-// 寻找两个图像中的对应点，像素坐标系
-// 输入：img1, img2 两张图像
-// 输出：points1, points2, 两组对应的2D点
 int     findCorrespondingPoints( const cv::Mat& img1, const cv::Mat& img2, vector<cv::Point2f>& points1, vector<cv::Point2f>& points2, cv::Mat& img1_with_features);
 //const int MAX_FEATURES = 500;
-const int MAX_FEATURES = 100;
+const int MAX_FEATURES = 500;
 // 相机内参
-double cx = 325.5;
-double cy = 253.5;
-double fx = 518.0;
-double fy = 519.0;
+double cx = 239.961714;
+double cy = 256.842130;
+double fx = 814.660678;
+double fy = 815.013833;
 
 clock_t deltaTime = 0;
 unsigned int frames = 0;
+int frameCount = 0;
 double  frameRate = 30;
 
 Mat traj_image = Mat::zeros( 800, 800, CV_8UC1);
@@ -53,14 +60,16 @@ double clockToMilliseconds(clock_t ticks){
 }
 
 
+void g2o_pose(vector<cv::Point2f>& pts1,vector<cv::Point2f>& pts2,Eigen::Isometry3d* pose);
+
 void visulizePose2d(Mat& traj_image,Isometry3d& pose_in)
 {
     Vector3d translation = pose_in.translation();
 
     double drawX = translation(0);
     double drawY = translation(2);
-    drawX*=0.5;
-    drawY*=0.5;
+    //drawX*=50;
+    //drawY*=50;
     drawX = (int)drawX+traj_image.cols/2;
     drawY = (int)drawY+traj_image.rows/2;
     //cout<<"drawX = "<<drawX<<", drawY = "<<drawY<<endl;
@@ -99,7 +108,6 @@ int main( int argc, char** argv )
         return -1;
     }
 
-    //VideoCapture cap(1);
     if(!cap.isOpened())  // check if we succeeded
     {
         cout<<"camera not open"<<endl;
@@ -112,28 +120,36 @@ int main( int argc, char** argv )
 
 
     //create Isometry object to keep tracking of pose
-    Isometry3d pose_g = Isometry3d::Identity();
+    Isometry3d pose_global = Isometry3d::Identity();
 
-    float resizeFactor = 0.3f;
+    pose_global.rotate(AngleAxisd(3.141592653*0.5,Vector3d::UnitX()));
 
     Mat img1_with_features;
     cap>>img1;
 
-    resize(img1, img1, cv::Size(), resizeFactor, resizeFactor);
+    //resize(img1, img1, cv::Size(), resizeFactor, resizeFactor);
     while(cap.isOpened())
     {
         clock_t beginFrame = clock();
 
-        cap>>img2;
-        resize(img2, img2, cv::Size(), resizeFactor, resizeFactor);
 
+        cap>>img2;
+        if(frameCount%10!=0)
+        {
+            frameCount++;
+            continue;
+        }
+        //resize(img2, img2, cv::Size(), resizeFactor, resizeFactor);
+
+        //cx = img2.cols/2;
+        //cy = img2.rows/2;
+        //cout<<"cx = "<<cx<<endl;
         // 找到对应点
         vector<cv::Point2f> pts1, pts2;
         if ( findCorrespondingPoints( img1, img2, pts1, pts2, img1_with_features) == false )
         {
             //imshow("img1", img1);
             //imshow("img2", img2);
-            if(waitKey(30) >= 0) break;
             img2.copyTo(img1);
             cout<<"Insufficient matching!"<<endl;
             continue;
@@ -161,18 +177,40 @@ int main( int argc, char** argv )
         cv::cv2eigen(R,rot_mat);
         //cout<<"rot_mat = "<<rot_mat<<endl;
         cv::cv2eigen(t,t_mat);
-        //cout<<"t_mat.size() = "<<t_mat.size()<<endl;
         //cout<<"t_mat = "<<t_mat<<endl;
-        pose_g.rotate(rot_mat);
-        pose_g.pretranslate(t_mat);
-        cout<<"pose_g = "<<endl<<pose_g.matrix()<<endl;
-        //cout<<"pose_g.translation() = "<<pose_g.translation()<<endl;
-
-        //draw 2d trajectory onto mat
-        visulizePose2d(traj_image,pose_g);
+        Isometry3d pose_temp = Isometry3d::Identity();
+        pose_temp.rotate(rot_mat);
+        pose_temp.pretranslate(t_mat);
 
 
-        cout<<"FPS = "<<frameRate<<endl; 
+        //*******************************
+        //*********   G2O based  ********
+        //*******************************
+        //g2o_pose(pts1, pts2,&pose_temp);
+        //*******************************
+
+
+        //pose_global = pose_global*pose_temp;
+        pose_global = pose_temp*pose_global;
+
+        //pose_global.rotate(rot_mat);
+        //pose_global.pretranslate(t_mat);
+
+
+
+        //pose_global.rotate(pose_temp.rotation());
+        //pose_global.pretranslate(pose_temp.translation());
+
+        Vector3d ea = pose_temp.rotation().eulerAngles(0, 1, 2);
+        cout<<"pose_temp[R t] = ["<<ea.transpose()<<","<<pose_temp.translation().transpose()<<"]"<<endl;
+
+        ea = pose_global.rotation().eulerAngles(0, 1, 2);
+        cout<<"pose_global[R t] = ["<<ea.transpose()<<","<<pose_global.translation().transpose()<<"]"<<endl;
+        //draw 2globald trajectory onto mat
+        visulizePose2d(traj_image,pose_global);
+
+
+        cout<<"[frame"<<frameCount<<"]FPS = "<<frameRate<<endl; 
 
         //if(waitKey(30) >= 0) break;
         waitKey(1);
@@ -181,6 +219,7 @@ int main( int argc, char** argv )
         clock_t endFrame = clock();
         deltaTime += endFrame - beginFrame;
         frames ++;
+        frameCount++;
         //if you really want FPS
         if( clockToMilliseconds(deltaTime)>1000.0)
         { //every second
@@ -208,7 +247,7 @@ int     findCorrespondingPoints( const cv::Mat& img1, const cv::Mat& img2, vecto
     }
 
 
-    drawKeypoints(img1,kp1, img1_with_features, Scalar::all(-1),DrawMatchesFlags::DRAW_RICH_KEYPOINTS);
+    drawKeypoints(img1,kp1, img1_with_features, Scalar::all(-1),DrawMatchesFlags::DEFAULT);
 
     cv::Ptr<cv::DescriptorMatcher>  matcher = cv::DescriptorMatcher::create( "BruteForce-Hamming");
 
@@ -222,6 +261,7 @@ int     findCorrespondingPoints( const cv::Mat& img1, const cv::Mat& img2, vecto
             matches.push_back( matches_knn[i][0] );
     }
 
+    cout<<"matches.size() = "<<matches.size()<<endl;
     if (matches.size() <= 20) //匹配点太少
         return false;
 
@@ -232,4 +272,138 @@ int     findCorrespondingPoints( const cv::Mat& img1, const cv::Mat& img2, vecto
     }
 
     return true;
+}
+
+
+
+void g2o_pose(vector<cv::Point2f>& pts1,vector<cv::Point2f>& pts2,Eigen::Isometry3d* pose)
+{
+
+    double percentage = 0.0;
+    // 构造g2o中的图
+    // 先构造求解器
+    g2o::SparseOptimizer    optimizer;
+    // 使用Cholmod中的线性方程求解器
+    g2o::BlockSolver_6_3::LinearSolverType* linearSolver = new  g2o::LinearSolverCholmod<g2o::BlockSolver_6_3::PoseMatrixType> ();
+    // 6*3 的参数
+    // 6 X 3 matrix, why 6 X 3?
+    g2o::BlockSolver_6_3* block_solver = new g2o::BlockSolver_6_3( std::unique_ptr<g2o::BlockSolver_6_3::LinearSolverType>(linearSolver) );
+    // L-M 下降 
+    // select a iteration strategy
+    g2o::OptimizationAlgorithmLevenberg* algorithm = new g2o::OptimizationAlgorithmLevenberg( std::unique_ptr<g2o::BlockSolver_6_3>(block_solver) );
+
+    optimizer.setAlgorithm( algorithm );
+    optimizer.setVerbose( false );
+
+    // 添加节点
+    // 两个位姿节点
+    for ( int i=0; i<2; i++ )
+    {
+        g2o::VertexSE3Expmap* v = new g2o::VertexSE3Expmap();
+        v->setId(i);
+        if ( i == 0)
+            v->setFixed( true ); // 第一个点固定为零
+        // 预设值为单位Pose，因为我们不知道任何信息
+        v->setEstimate( g2o::SE3Quat() );
+        optimizer.addVertex( v );
+    }
+    // 很多个特征点的节点
+    // 以第一帧为准
+
+    for ( size_t i=0; i<pts1.size(); i++ )
+    {
+        g2o::VertexSBAPointXYZ* v = new g2o::VertexSBAPointXYZ();
+        v->setId( 2 + i );
+        // 由于深度不知道，只能把深度设置为1了
+        double z = 1;
+        double x = ( pts1[i].x - cx ) * z / fx;
+        double y = ( pts1[i].y - cy ) * z / fy;
+        v->setMarginalized(true);
+        v->setEstimate( Eigen::Vector3d(x,y,z) );
+        optimizer.addVertex( v );
+    }
+
+    // 准备相机参数
+    g2o::CameraParameters* camera = new g2o::CameraParameters( fx, Eigen::Vector2d(cx, cy), 0 );
+    camera->setId(0);
+    optimizer.addParameter( camera );
+
+    // 准备边
+    // 第一帧
+    vector<g2o::EdgeProjectXYZ2UV*> edges;
+    for ( size_t i=0; i<pts1.size(); i++ )
+    {
+        g2o::EdgeProjectXYZ2UV*  edge = new g2o::EdgeProjectXYZ2UV();
+        edge->setVertex( 0, dynamic_cast<g2o::VertexSBAPointXYZ*>   (optimizer.vertex(i+2)) );
+        edge->setVertex( 1, dynamic_cast<g2o::VertexSE3Expmap*>     (optimizer.vertex(0)) );
+        edge->setMeasurement( Eigen::Vector2d(pts1[i].x, pts1[i].y ) );
+        edge->setInformation( Eigen::Matrix2d::Identity() );
+        edge->setParameterId(0, 0);
+        edge->setLevel(0);
+        // 核函数
+        edge->setRobustKernel( new g2o::RobustKernelHuber() );
+        optimizer.addEdge( edge );
+        edges.push_back(edge);
+    }
+    // 第二帧
+    for ( size_t i=0; i<pts2.size(); i++ )
+    {
+        g2o::EdgeProjectXYZ2UV*  edge = new g2o::EdgeProjectXYZ2UV();
+        edge->setVertex( 0, dynamic_cast<g2o::VertexSBAPointXYZ*>   (optimizer.vertex(i+2)) );
+        edge->setVertex( 1, dynamic_cast<g2o::VertexSE3Expmap*>     (optimizer.vertex(1)) );
+        edge->setMeasurement( Eigen::Vector2d(pts2[i].x, pts2[i].y ) );
+        edge->setInformation( Eigen::Matrix2d::Identity() );
+        edge->setParameterId(0,0);
+        edge->setLevel(0);
+        // 核函数
+        edge->setRobustKernel( new g2o::RobustKernelHuber() );
+        optimizer.addEdge( edge );
+        edges.push_back(edge);
+    }
+
+    while(percentage<0.999)
+    {
+        //cout<<"开始优化"<<endl;
+        //optimizer.setVerbose(true);
+        optimizer.initializeOptimization(0);
+        optimizer.optimize(10);
+        //cout<<"优化完毕"<<endl;
+
+        //我们比较关心两帧之间的变换矩阵
+        g2o::VertexSE3Expmap* v = dynamic_cast<g2o::VertexSE3Expmap*>( optimizer.vertex(1) );
+        *pose = v->estimate();
+
+        //Eigen::Isometry3d pose2 = v->estimate();
+        //since there is no scale, unify the pose
+        //cout<<"g2o Pose="<<endl<<pose->matrix()<<endl;
+
+        // 估计inlier的个数
+        int inliers = 0;
+        int outliers = 0;
+        for ( auto e:edges )
+        {
+            e->computeError();
+            // chi2 就是 error*\Omega*error, 如果这个数很大，说明此边的值与其他边很不相符
+            //cout<<"e->level() = "<<e->level()<<endl;
+            if (e->chi2() > 1 )
+            {
+                //cout<<"error = "<<e->chi2()<<endl;
+                //remove outliers   //https://github.com/RainerKuemmerle/g2o/issues/259
+                if(e->level()==0)
+                {
+                    e->setLevel(1);
+                    outliers++;
+                }
+            }
+            else
+            {
+                inliers++;
+            }
+        }
+
+        percentage = max(percentage,inliers/(double)(inliers+outliers));
+        cout<<"["<<(percentage)<<"]inliers in total points: "<<inliers<<"/"<<inliers+outliers<<endl;
+
+
+    }
 }

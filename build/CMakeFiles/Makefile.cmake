@@ -88,6 +88,8 @@ set(CMAKE_MAKEFILE_DEPENDS
   "/usr/share/cmake-3.5/Modules/Compiler/XL-CXX-DetermineCompiler.cmake"
   "/usr/share/cmake-3.5/Modules/Compiler/zOS-C-DetermineCompiler.cmake"
   "/usr/share/cmake-3.5/Modules/Compiler/zOS-CXX-DetermineCompiler.cmake"
+  "/usr/share/cmake-3.5/Modules/FindCholmod.cmake"
+  "/usr/share/cmake-3.5/Modules/FindG2O.cmake"
   "/usr/share/cmake-3.5/Modules/FindPackageHandleStandardArgs.cmake"
   "/usr/share/cmake-3.5/Modules/FindPackageMessage.cmake"
   "/usr/share/cmake-3.5/Modules/Internal/FeatureTesting.cmake"
