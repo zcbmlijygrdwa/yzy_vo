@@ -163,6 +163,11 @@ int main( int argc, char** argv )
     cap>>img1;
     //resize(img1, img1, cv::Size(), resizeFactor, resizeFactor);
 
+    cx = img1.cols/2;
+    cy = img1.rows/2;
+    cout<<"cx = "<<cx<<endl;
+    cout<<"cy = "<<cy<<endl;
+
     cv::Ptr<cv::Feature2D> orb = cv::ORB::create(MAX_FEATURES);
     vector<cv::KeyPoint> kp1;
     cv::Mat desp1;
@@ -174,7 +179,7 @@ int main( int argc, char** argv )
         tempPoints1.push_back( tempKp.pt );
     }
     prevFeatures = tempPoints1;
-    
+
 
     while(cap.isOpened())
     {
@@ -182,7 +187,7 @@ int main( int argc, char** argv )
 
 
         cap>>img2;
-    
+
         //get a frame every 10 frames
         //doing this to make sure feature points move enough distance on image, if distance too small, the camera small motion estimation will not be accurate.
         if(frameCount%5!=0)
@@ -190,15 +195,12 @@ int main( int argc, char** argv )
             frameCount++;
             continue;
         }
-        
+
         //resize(img2, img2, cv::Size(), resizeFactor, resizeFactor);
 
-        //cx = img2.cols/2;
-        //cy = img2.rows/2;
-        //cout<<"cx = "<<cx<<endl;
         // 找到对应点
         vector<cv::Point2f> pts1, pts2;
-        
+
 
         if ( findCorrespondingPoints( img1, img2, pts1, pts2, img1_with_features) == false )
         {
@@ -209,7 +211,7 @@ int main( int argc, char** argv )
             continue;
         }
         //cout<<"找到了"<<pts1.size()<<"组对应特征点。"<<endl;
-        
+
         //prevFeatures = pts1;
 
         vector<Point2f> currFeatures;
@@ -217,13 +219,11 @@ int main( int argc, char** argv )
 
         //feature tracking
 
-        cout<<"prevFeatures.size() = "<<prevFeatures.size()<<endl;
-        cout<<"currFeatures.size() = "<<currFeatures.size()<<endl;
-
+        //cout<<"prevFeatures.size() = "<<prevFeatures.size()<<endl;
+        //cout<<"currFeatures.size() = "<<currFeatures.size()<<endl;
         //featureTracking(img1, img2, prevFeatures, currFeatures, status);
-
-        cout<<"2prevFeatures.size() = "<<prevFeatures.size()<<endl;
-        cout<<"2currFeatures.size() = "<<currFeatures.size()<<endl;
+        //cout<<"2prevFeatures.size() = "<<prevFeatures.size()<<endl;
+        //cout<<"2currFeatures.size() = "<<currFeatures.size()<<endl;
 
         //use epipolar constrain
         cv::Mat mask;
@@ -233,6 +233,10 @@ int main( int argc, char** argv )
         //cout << "E:" << endl << e_mat/e_mat.at<double>(2,2) << endl;
         cv::Mat R, t;
         cv::recoverPose(e_mat, pts1, pts2, R, t,fx,cv::Point2f(cx,cy),mask);
+
+
+
+
         //end of using epipolar constrain
         //imshow("img1", img1);
         //imshow("img2", img2);
@@ -251,20 +255,31 @@ int main( int argc, char** argv )
         //cout<<"t_mat = "<<t_mat<<endl;
         Isometry3d pose_temp = Isometry3d::Identity();
 
+
+        //************************************************
+        //* the resulted t is normalized, (t(0)^2+t(1)^2+t(2)^2 = 1)
+        //* need scale for each frame to recover actual t
+        //************************************************
+
+        //double tempNorm = t_mat.squaredNorm();
+        //cout<<"tempNorm = "<<tempNorm<<endl;
+
+
+
         if(frameCount!=-160)
-{
-        pose_temp.rotate(rot_mat);
-        pose_temp.pretranslate(t_mat);
-}
-else
-{
-        rot_mat = AngleAxisd(0.25f,Vector3d::UnitY());
-        t_mat <<0,0,0;
-        cout<<"test rot_mat = "<<rot_mat<<endl;
-        cout<<"test t_mat = "<<t_mat<<endl;
-        pose_temp.rotate(rot_mat);
-        pose_temp.pretranslate(t_mat);
-}
+        {
+            pose_temp.rotate(rot_mat);
+            pose_temp.pretranslate(t_mat);
+        }
+        else
+        {
+            rot_mat = AngleAxisd(0.25f,Vector3d::UnitY());
+            t_mat <<0,0,0;
+            cout<<"test rot_mat = "<<rot_mat<<endl;
+            cout<<"test t_mat = "<<t_mat<<endl;
+            pose_temp.rotate(rot_mat);
+            pose_temp.pretranslate(t_mat);
+        }
 
         //*******************************
         //*********   G2O based  ********
