@@ -150,6 +150,8 @@ int main( int argc, char** argv )
     //create Isometry object to keep tracking of pose
     Isometry3d pose_global = Isometry3d::Identity();
 
+
+    //need to rotate roll because the camera is on the Z axis, Z axis pointing forward.
     pose_global.rotate(AngleAxisd(3.141592653*0.5,Vector3d::UnitX()));
 
     vector<uchar> status;
